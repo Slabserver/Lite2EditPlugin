@@ -1,0 +1,4 @@
+name: Lite2Edit
+main: org.slabserver.plugin.lite2edit.Lite2Edit
+version: ${project.version}
+api-version: 1.15

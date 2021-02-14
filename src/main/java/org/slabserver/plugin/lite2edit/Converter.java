@@ -36,9 +36,9 @@ public class Converter {
 			ListTag palette = region.get("BlockStatePalette").asList();
 			int bitsPerBlock = (int) Math.ceil(Math.log(palette.size()) / Math.log(2));
 			
-			System.out.println("Region name: " + regionTag.name());
-			System.out.println("Palette size: " + palette.size());
-			System.out.println("Bits per block: " + bitsPerBlock);
+			// System.out.println("Region name: " + regionTag.name());
+			// System.out.println("Palette size: " + palette.size());
+			// System.out.println("Bits per block: " + bitsPerBlock);
 			
 			Tag size = region.get("Size");
 			int x = size.get("x").intValue();
@@ -85,7 +85,7 @@ public class Converter {
 					name += "[" + String.join(",", propertyNames) + "]";
 				}
 				blockPalette[i++] = name;
-				System.out.println(i-1 + ":" + name);
+				// System.out.println(i-1 + ":" + name);
 			}
 			
 			/*
