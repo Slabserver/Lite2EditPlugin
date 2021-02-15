@@ -24,7 +24,8 @@ import se.llbit.nbt.SpecificTag;
 import se.llbit.nbt.Tag;
 
 public class Converter {
-	
+	private static boolean sanitize = true;
+
 	public static List<File> litematicToWorldEdit(File inputFile, File outputDir) throws IOException {
 		DataInputStream inStream = new DataInputStream(new GZIPInputStream(new FileInputStream(inputFile)));
 		Tag litematica = CompoundTag.read(inStream).get("");
@@ -35,10 +36,6 @@ public class Converter {
 			CompoundTag region = regionTag.asCompound();
 			ListTag palette = region.get("BlockStatePalette").asList();
 			int bitsPerBlock = (int) Math.ceil(Math.log(palette.size()) / Math.log(2));
-			
-			// System.out.println("Region name: " + regionTag.name());
-			// System.out.println("Palette size: " + palette.size());
-			// System.out.println("Bits per block: " + bitsPerBlock);
 			
 			Tag size = region.get("Size");
 			int x = size.get("x").intValue();
@@ -85,7 +82,6 @@ public class Converter {
 					name += "[" + String.join(",", propertyNames) + "]";
 				}
 				blockPalette[i++] = name;
-				// System.out.println(i-1 + ":" + name);
 			}
 			
 			/*
@@ -97,6 +93,7 @@ public class Converter {
 			for (short block : liteBlocks) {
 				if (block >= palette.size())
 					throw new IllegalArgumentException("Something's wrong with the palette");
+				
 				if (block > 127) {
 					weBlocks[i++] = (byte) (block | 128);
 					weBlocks[i++] = (byte) (block / 128);
@@ -124,6 +121,7 @@ public class Converter {
 				weTileEntity.add("Pos", new IntArrayTag(new int[] {tx, ty, tz}));
 				for (NamedTag tag2 : liteTileEntity) {
 					String name = tag2.name();
+					
 					if (!name.equals("x") && !name.equals("y") && !name.equals("z"))
 						weTileEntity.add(tag2);
 				}
@@ -145,7 +143,7 @@ public class Converter {
 			worldEdit.add(new NamedTag("DataVersion", new IntTag(2584))); // TODO figure out what the deal is here
 			worldEdit.add(new NamedTag("Height", new ShortTag((short) Math.abs(y))));
 			worldEdit.add(new NamedTag("Length", new ShortTag((short) Math.abs(z))));
-			worldEdit.add(new NamedTag("PaletteMax", new IntTag(palette.size())));
+			worldEdit.add(new NamedTag("PaletteMax", new IntTag(wePalette.size())));
 			worldEdit.add(new NamedTag("Version", new IntTag(2)));
 			worldEdit.add(new NamedTag("Width", new ShortTag((short) Math.abs(x))));
 			worldEdit.add(new NamedTag("BlockData", new ByteArrayTag(weBlocks)));
@@ -153,6 +151,8 @@ public class Converter {
 			
 			CompoundTag worldEditRoot = new CompoundTag();
 			worldEditRoot.add("", worldEdit);
+			if (sanitize)
+				worldEditRoot = Sanitizer.sanitize(worldEditRoot);
 			
 			Files.createDirectories(outputDir.toPath());
 			File outputFile = new File(outputDir.toPath() + "/" + regionTag.name() + ".schem");

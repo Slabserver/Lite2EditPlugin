@@ -145,7 +145,7 @@ public class Lite2Edit extends JavaPlugin {
 					else if (filename.endsWith(".schem")) {
 						/*
 						 * count bytes
-						 * download schematic
+						 * download schematic and sanitize
 						 * move to worldedit folder
 						 * delete folder
 						 */
@@ -158,12 +158,14 @@ public class Lite2Edit extends JavaPlugin {
 							.thenAccept(inputFile -> {
 								String msg;
 								try {
+									Sanitizer.sanitize(inputFile);
 									String outputFile = moveToWorldEditDir(inputFile).getName();
 									msg = "Uploaded " + outputFile;
 								} catch (IOException e) {
 									e.printStackTrace();
 									msg = "IO Exception";
 								}
+								getLogger().info(msg);
 								event.getChannel().sendMessage(msg).queue();
 								deleteDir(outputDir);
 							});
