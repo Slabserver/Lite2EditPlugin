@@ -21,6 +21,7 @@ import se.llbit.nbt.ListTag;
 import se.llbit.nbt.NamedTag;
 import se.llbit.nbt.ShortTag;
 import se.llbit.nbt.SpecificTag;
+import se.llbit.nbt.StringTag;
 import se.llbit.nbt.Tag;
 
 public class Converter {
@@ -30,17 +31,29 @@ public class Converter {
 		DataInputStream inStream = new DataInputStream(new GZIPInputStream(new FileInputStream(inputFile)));
 		Tag litematica = CompoundTag.read(inStream).get("");
 		inStream.close();
+		int dataVersion = litematica.get("MinecraftDataVersion").intValue();
 		
 		List<File> files = new ArrayList<File>();
-		for (NamedTag regionTag : litematica.get("Regions").asCompound()) {
+		CompoundTag regions = litematica.get("Regions").asCompound();
+		for (NamedTag regionTag : regions) {
 			CompoundTag region = regionTag.asCompound();
 			ListTag palette = region.get("BlockStatePalette").asList();
-			int bitsPerBlock = (int) Math.ceil(Math.log(palette.size()) / Math.log(2));
+			int bitsPerBlock = palette.size() <= 2 ? 1
+					: (Integer.SIZE - Integer.numberOfLeadingZeros(palette.size() - 1));
 			
+			// Litematica size can be negative.
+			// Math.abs() is used to ensure positive values.
 			Tag size = region.get("Size");
 			int x = size.get("x").intValue();
 			int y = size.get("y").intValue();
 			int z = size.get("z").intValue();
+			
+			// get offset
+			Tag position = region.get("Position");
+			int offsetx = position.get("x").intValue() + (x < 0 ? x+1 : 0);
+			int offsety = position.get("y").intValue() + (y < 0 ? y+1 : 0);
+			int offsetz = position.get("z").intValue() + (z < 0 ? z+1 : 0);
+			
 			int numBlocks = Math.abs(x * y * z);
 			short[] liteBlocks = new short[numBlocks];
 			long bitmask, bits = 0;
@@ -112,35 +125,42 @@ public class Converter {
 			
 			// Copy tile entity data
 			List<CompoundTag> weTileEntities = new ArrayList<CompoundTag>();
-			for (SpecificTag tag : region.get("TileEntities").asList()) {
-				CompoundTag liteTileEntity = tag.asCompound();
+			for (SpecificTag tileEntity : region.get("TileEntities").asList()) {
+				CompoundTag liteTileEntity = tileEntity.asCompound();
 				CompoundTag weTileEntity = new CompoundTag();
+				
+				// Litematica uses integer "x", "y", and "z" tags
+				// WorldEdit uses one integer array "Pos" tag
 				int tx = liteTileEntity.get("x").intValue();
 				int ty = liteTileEntity.get("y").intValue();
 				int tz = liteTileEntity.get("z").intValue();
 				weTileEntity.add("Pos", new IntArrayTag(new int[] {tx, ty, tz}));
-				for (NamedTag tag2 : liteTileEntity) {
-					String name = tag2.name();
-					
-					if (!name.equals("x") && !name.equals("y") && !name.equals("z"))
-						weTileEntity.add(tag2);
+				
+				// Litematica uses a lowercase "id"
+				// WorldEdit uses a capitalized "Id"
+				String tid = liteTileEntity.get("id").stringValue();
+				weTileEntity.add("Id", new StringTag(tid));
+				
+				List<String> skip = Arrays.asList("x", "y", "z", "id");
+				for (NamedTag tileEntityTag : liteTileEntity) {
+					String name = tileEntityTag.name();
+					if (!skip.contains(name))
+						weTileEntity.add(tileEntityTag);
 				}
 				weTileEntities.add(weTileEntity);
 			}
 			
 			// metadata
-			// TODO base offset on region offset within the litematic
 			CompoundTag metadata = new CompoundTag();
-			IntTag zero = new IntTag(0);
-			metadata.add("WEOffsetX", zero);
-			metadata.add("WEOffsetY", zero);
-			metadata.add("WEOffsetZ", zero);
+			metadata.add("WEOffsetX", new IntTag(offsetx));
+			metadata.add("WEOffsetY", new IntTag(offsety));
+			metadata.add("WEOffsetZ", new IntTag(offsetz));
 			
 			CompoundTag worldEdit = new CompoundTag();
 			worldEdit.add(new NamedTag("Metadata", metadata));
 			worldEdit.add(new NamedTag("Palette", wePalette));
 			worldEdit.add(new NamedTag("BlockEntities", new ListTag(Tag.TAG_COMPOUND, weTileEntities)));
-			worldEdit.add(new NamedTag("DataVersion", new IntTag(2584))); // TODO figure out what the deal is here
+			worldEdit.add(new NamedTag("DataVersion", new IntTag(dataVersion)));
 			worldEdit.add(new NamedTag("Height", new ShortTag((short) Math.abs(y))));
 			worldEdit.add(new NamedTag("Length", new ShortTag((short) Math.abs(z))));
 			worldEdit.add(new NamedTag("PaletteMax", new IntTag(wePalette.size())));
@@ -150,12 +170,23 @@ public class Converter {
 			worldEdit.add(new NamedTag("Offset", new IntArrayTag(new int[3])));
 			
 			CompoundTag worldEditRoot = new CompoundTag();
-			worldEditRoot.add("", worldEdit);
+			worldEditRoot.add("Schematic", worldEdit);
 			if (sanitize)
 				worldEditRoot = Sanitizer.sanitize(worldEditRoot);
 			
+			// determine outputFileName
+			String outputFileName = inputFile.getName();
+			if (outputFileName.contains(".")) {
+				outputFileName = outputFileName.substring(0, outputFileName.lastIndexOf('.'));
+			}
+			if (regions.size() > 1) {
+				outputFileName += "-" + regionTag.name();
+			}
+			outputFileName = outputFileName.replace(' ', '_') + ".schem";
+			
+			// make sure directory exists, and write to the provided path
 			Files.createDirectories(outputDir.toPath());
-			File outputFile = new File(outputDir.toPath() + "/" + regionTag.name() + ".schem");
+			File outputFile = new File(outputDir + "/" + outputFileName);
 			DataOutputStream outStream = new DataOutputStream(new GZIPOutputStream(new FileOutputStream(outputFile)));
 			worldEditRoot.write(outStream);
 			outStream.close();
