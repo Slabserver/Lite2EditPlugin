@@ -55,18 +55,24 @@ public class Sanitizer {
 		}
 		
 		// find tile entities to edit or remove
-		boolean hasBlacklistedTileEntities = false;
+		boolean modifiedTileEntities = false;
 		ListTag blockEntities = worldEdit.get("BlockEntities").asList();
 		List<CompoundTag> newBlockEntities = new ArrayList<>();
 		for (SpecificTag specificTag : blockEntities) {
 			CompoundTag blockEntity = specificTag.asCompound();
-			String id = "";
+			String id = null;
+			int count = 0;
 			for (NamedTag namedTag : blockEntity) {
 				// both "Id" and "id" are valid in world edit apparently
 				// may be case sensitive
 				if (namedTag.name().equalsIgnoreCase("id")) {
 					id = namedTag.unpack().stringValue();
+					count++;
 				}
+			}
+			if (count != 1) {
+				modifiedTileEntities = true;
+				continue;
 			}
 			switch (id) {
 			case "minecraft:sign":
@@ -81,7 +87,7 @@ public class Sanitizer {
 					case "Text4":
 						String json = namedTag.unpack().stringValue();
 						if (json.contains("\"clickEvent\"")) {
-							hasBlacklistedTileEntities = true;
+							modifiedTileEntities = true;
 							newBlockEntity.add(key, new StringTag(""));
 							continue;
 						}
@@ -96,7 +102,7 @@ public class Sanitizer {
 			case "structure_block":
 			case "minecraft:jigsaw":
 			case "jigsaw":
-				hasBlacklistedTileEntities = true;
+				modifiedTileEntities = true;
 				break;
 			default:
 				newBlockEntities.add(blockEntity);
@@ -104,7 +110,7 @@ public class Sanitizer {
 		}
 		
 		// if there's nothing to change, return parameter early
-		if (!hasBlacklistedTileEntities && blocksToRemove.isEmpty())
+		if (!modifiedTileEntities && blocksToRemove.isEmpty())
 			return worldEditRoot;
 		
 		Lite2Edit.getPlugin(Lite2Edit.class).getLogger().info("Sanitizing schematic");
