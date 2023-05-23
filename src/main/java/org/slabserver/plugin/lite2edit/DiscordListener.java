@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,16 +77,14 @@ public class DiscordListener extends ListenerAdapter {
 								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir);
 								List<String> lines = new ArrayList<>();
 								for (File schem : schematics) {
-									copyToSchematicFolders(schem);
-									lines.add("Uploaded " + schem.getName());
+									lines.add("Uploaded " + copyToSchematicFolders(schem).getName());
 								}
 								msg = String.join("\n", lines);
 							}
 							// sanitize worldedit schematic
 							else {
 								Sanitizer.sanitize(inputFile);
-								copyToSchematicFolders(inputFile);
-								String outputFile = inputFile.getName();
+								String outputFile = copyToSchematicFolders(inputFile).getName();
 								msg = "Uploaded " + outputFile;
 							}
 						} catch (IOException e) {
@@ -109,17 +108,13 @@ public class DiscordListener extends ListenerAdapter {
 		plugin.downloadedBytes.put(userId, userBytes);
 	}
 	
-	private void copyToSchematicFolders(File file) throws IOException {
+	private File copyToSchematicFolders(File file) throws IOException {
 		String pluginsDir = plugin.getDataFolder().getParent();
-		String worldEditDir = pluginsDir + "/WorldEdit/schematics";
+		String weDir = pluginsDir + "/WorldEdit/schematics";
 		String faweDir = pluginsDir + "/FastAsyncWorldEdit/schematics";
-		copyTo(file, worldEditDir);
-		copyTo(file, faweDir);
-	}
-	
-	private void copyTo(File file, String dir) throws IOException {
-		Files.createDirectories(Paths.get(dir));
-		String destinationName = dir + "/" + file.getName();
+		
+		Files.createDirectories(Paths.get(weDir));
+		String destinationName = weDir + "/" + file.getName();
 		File destination = new File(destinationName);
 		int index = destinationName.lastIndexOf('.');
 		for (int i = 1; i < 1000 && destination.exists(); ++i) {
@@ -133,6 +128,8 @@ public class DiscordListener extends ListenerAdapter {
 			}
 		}
 		Files.copy(file.toPath(), destination.toPath());
+		Files.copy(file.toPath(), Paths.get(faweDir + "/" + destination.getName()), StandardCopyOption.REPLACE_EXISTING);
+		return destination;
 	}
 
 }
