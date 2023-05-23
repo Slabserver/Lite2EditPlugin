@@ -1,5 +1,6 @@
 package org.slabserver.plugin.lite2edit;
 
+import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -28,21 +29,20 @@ public class Converter {
 	private static boolean sanitize = true;
 
 	public static List<File> litematicToWorldEdit(File inputFile, File outputDir) throws IOException {
+		File tempFile = new File("lite2edit_" + Thread.currentThread().getId() + ".tmp");
 		DataInputStream inStream = new DataInputStream(new GZIPInputStream(new FileInputStream(inputFile)));
 		Tag litematica = CompoundTag.read(inStream).get("");
 		inStream.close();
 		int dataVersion = litematica.get("MinecraftDataVersion").intValue();
 		
-		List<File> files = new ArrayList<File>();
+		List<File> files = new ArrayList<>();
 		CompoundTag regions = litematica.get("Regions").asCompound();
 		for (NamedTag regionTag : regions) {
 			CompoundTag region = regionTag.asCompound();
 			ListTag palette = region.get("BlockStatePalette").asList();
-			int bitsPerBlock = palette.size() <= 2 ? 1
-					: (Integer.SIZE - Integer.numberOfLeadingZeros(palette.size() - 1));
+			int bitsPerBlock = Math.max(2, Integer.SIZE - Integer.numberOfLeadingZeros(palette.size() - 1));
 			
-			// Litematica size can be negative.
-			// Math.abs() is used to ensure positive values.
+			// Litematica dimensions can be negative.
 			Tag size = region.get("Size");
 			int x = size.get("x").intValue();
 			int y = size.get("y").intValue();
@@ -54,10 +54,12 @@ public class Converter {
 			int offsety = position.get("y").intValue() + (y < 0 ? y+1 : 0);
 			int offsetz = position.get("z").intValue() + (z < 0 ? z+1 : 0);
 			
+			// convert blocks
+			// use a temporary file to avoid OutOfMemoryErrors for large schematics
+			BufferedWriter writer = Files.newBufferedWriter(tempFile.toPath());
 			int numBlocks = Math.abs(x * y * z);
-			short[] liteBlocks = new short[numBlocks];
 			long bitmask, bits = 0;
-			int i = 0, bitCount = 0;
+			int i = 0, bitCount = 0, weSize = 0;
 			for (long num : region.get("BlockStates").longArray()) {
 				int remainingBits = bitCount + 64;
 				if (bitCount != 0) {
@@ -66,7 +68,8 @@ public class Converter {
 					bits = bits | newBits;
 					num = num >>> (bitsPerBlock - bitCount);
 					remainingBits -= bitsPerBlock;
-					liteBlocks[i++] = (short) bits;
+					weSize += writeBlock(writer, (short) bits);
+					i++;
 				}
 				
 				bitmask = (1 << bitsPerBlock) - 1;
@@ -74,13 +77,15 @@ public class Converter {
 					bits = num & bitmask;
 					num = num >>> bitsPerBlock;
 					remainingBits -= bitsPerBlock;
-					if (i >= liteBlocks.length)
+					if (i >= numBlocks)
 						break;
-					liteBlocks[i++] = (short) bits;
+					weSize += writeBlock(writer, (short) bits);
+					i++;
 				}
 				bits = num;
 				bitCount = remainingBits;
 			}
+			writer.close();
 			
 			i = 0;
 			String[] blockPalette = new String[palette.size()];
@@ -88,7 +93,7 @@ public class Converter {
 				String name = blockState.get("Name").stringValue();
 				CompoundTag properties = blockState.get("Properties").asCompound();
 				if (!properties.isEmpty()) {
-					List<String> propertyNames = new ArrayList<String>();
+					List<String> propertyNames = new ArrayList<>();
 					for (NamedTag property : properties) {
 						propertyNames.add(property.name() + "=" + property.unpack().stringValue());
 					}
@@ -100,22 +105,16 @@ public class Converter {
 			/*
 			 * Convert to WorldEdit format now
 			 */
-			// Convert block data
-			byte[] weBlocks = new byte[liteBlocks.length * 2];
-			i = 0;
-			for (short block : liteBlocks) {
-				if (block >= palette.size())
-					throw new IllegalArgumentException("Something's wrong with the palette");
-				
-				if (block > 127) {
-					weBlocks[i++] = (byte) (block | 128);
-					weBlocks[i++] = (byte) (block / 128);
-				}
-				else {
-					weBlocks[i++] = (byte) block;
-				}
+			// read block data
+			byte[] weBlocks = new byte[weSize];
+			FileInputStream stream = new FileInputStream(tempFile);
+			int r = stream.read(weBlocks), len = 0;
+			// keep reading if we didn't get the whole file in one go
+			while (r != -1 && len + r != weSize) {
+				len += r;
+				r = stream.read(weBlocks, len, weSize - len);
 			}
-			weBlocks = Arrays.copyOf(weBlocks, i);
+			stream.close();
 			
 			// Convert palette
 			CompoundTag wePalette = new CompoundTag();
@@ -124,7 +123,8 @@ public class Converter {
 			}
 			
 			// Copy tile entity data
-			List<CompoundTag> weTileEntities = new ArrayList<CompoundTag>();
+			List<CompoundTag> weTileEntities = new ArrayList<>();
+			List<String> skip = Arrays.asList("x", "y", "z", "id");
 			for (SpecificTag tileEntity : region.get("TileEntities").asList()) {
 				CompoundTag liteTileEntity = tileEntity.asCompound();
 				CompoundTag weTileEntity = new CompoundTag();
@@ -141,7 +141,6 @@ public class Converter {
 				String tid = liteTileEntity.get("id").stringValue();
 				weTileEntity.add("Id", new StringTag(tid));
 				
-				List<String> skip = Arrays.asList("x", "y", "z", "id");
 				for (NamedTag tileEntityTag : liteTileEntity) {
 					String name = tileEntityTag.name();
 					if (!skip.contains(name))
@@ -193,7 +192,21 @@ public class Converter {
 			files.add(outputFile);
 		}
 		
+		tempFile.delete();
 		return files;
+	}
+
+	private static int writeBlock(BufferedWriter writer, short block) throws IOException {
+		int b = block >>> 7;
+		if (b == 0) {
+			writer.write(block);
+			return 1;
+		}
+		else {
+			writer.write(block | 128);
+			writer.write(b);
+			return 2;
+		}
 	}
 
 }
