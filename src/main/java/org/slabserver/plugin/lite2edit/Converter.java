@@ -181,7 +181,7 @@ public class Converter {
 			if (regions.size() > 1) {
 				outputFileName += "-" + regionTag.name();
 			}
-			outputFileName = outputFileName.replace(' ', '_') + ".schem";
+			outputFileName = outputFileName.replaceAll("[^\\w-]+", "_") + ".schem";
 			
 			// make sure directory exists, and write to the provided path
 			Files.createDirectories(outputDir.toPath());
