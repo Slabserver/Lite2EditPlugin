@@ -74,16 +74,18 @@ public class DiscordListener extends ListenerAdapter {
 							// convert litematic to worldedit and sanitize output
 							if (litematic) {
 								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir);
-								List<String> outputFiles = new ArrayList<>();
+								List<String> lines = new ArrayList<>();
 								for (File schem : schematics) {
-									outputFiles.add(moveToWorldEditDir(schem).getName());
+									copyToSchematicFolders(schem);
+									lines.add("Uploaded " + schem.getName());
 								}
-								msg = "Uploaded " + String.join(", ", outputFiles);
+								msg = String.join("\n", lines);
 							}
 							// sanitize worldedit schematic
 							else {
 								Sanitizer.sanitize(inputFile);
-								String outputFile = moveToWorldEditDir(inputFile).getName();
+								copyToSchematicFolders(inputFile);
+								String outputFile = inputFile.getName();
 								msg = "Uploaded " + outputFile;
 							}
 						} catch (IOException e) {
@@ -107,22 +109,30 @@ public class DiscordListener extends ListenerAdapter {
 		plugin.downloadedBytes.put(userId, userBytes);
 	}
 	
-	private File moveToWorldEditDir(File file) throws IOException {
-		String worldEditDir = plugin.getDataFolder().getParent() + "/WorldEdit/schematics";
-		Files.createDirectories(Paths.get(worldEditDir));
-		String destinationName = worldEditDir + "/" + file.getName();
+	private void copyToSchematicFolders(File file) throws IOException {
+		String pluginsDir = plugin.getDataFolder().getParent();
+		String worldEditDir = pluginsDir + "/WorldEdit/schematics";
+		String faweDir = pluginsDir + "/FastAsyncWorldEdit/schematics";
+		copyTo(file, worldEditDir);
+		copyTo(file, faweDir);
+	}
+	
+	private void copyTo(File file, String dir) throws IOException {
+		Files.createDirectories(Paths.get(dir));
+		String destinationName = dir + "/" + file.getName();
 		File destination = new File(destinationName);
 		int index = destinationName.lastIndexOf('.');
 		for (int i = 1; i < 1000 && destination.exists(); ++i) {
 			if (index < 0)
 				destination = new File(destinationName + "(" + i + ")");
 			else {
-				destination = new File(new StringBuilder(destinationName)
-						.insert(index, "(" + i + ")").toString());
+				String path = new StringBuilder(destinationName)
+						.insert(index, "(" + i + ")")
+						.toString();
+				destination = new File(path);
 			}
 		}
-		Files.move(file.toPath(), destination.toPath());
-		return destination;
+		Files.copy(file.toPath(), destination.toPath());
 	}
 
 }
