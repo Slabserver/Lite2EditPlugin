@@ -10,8 +10,8 @@ import java.util.List;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message.Attachment;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
@@ -28,31 +28,50 @@ public class DiscordListener extends ListenerAdapter {
 	public void onPrivateMessageReceived(PrivateMessageReceivedEvent event) {
 		if (event.getAuthor().equals(jda.getSelfUser()))
 			return;
-		List<Attachment> attachments = event.getMessage().getAttachments();
-		if (attachments.isEmpty())
+		if (!containsSchematics(event))
 			return;
+		
+		Config config = plugin.config;
 		long userId = event.getAuthor().getIdLong();
 		String userTag = event.getAuthor().getAsTag();
-		int userBytes = plugin.downloadedBytes.getOrDefault(userId, 0);
-		if (userBytes > 52428800) {
+		long userBytes = plugin.downloadedBytes.getOrDefault(userId, 0L);
+		if (userBytes > (config.dailyUploadLimit << 20)) {
 			plugin.getLogger().info(userTag + " has uploaded too many schematics");
 			event.getChannel().sendMessage("You've uploaded too many schematics").queue();
 			return;
 		}
-		boolean isWhitelisted = false;
-		Guild guild = jda.getGuildById(plugin.whitelistedGuild);
+		Guild guild = jda.getGuildById(config.whitelistedGuild);
 		if (guild != null) {
-			Member member = guild.retrieveMemberById(userId).complete();
-			if (member != null) {
-				isWhitelisted = member.getRoles().contains(guild.getRoleById(plugin.whitelistedRole));
-			}
+			guild.retrieveMemberById(userId).queue(member -> {
+				Role whitelistedRole = guild.getRoleById(config.whitelistedRole);
+				if (member.getRoles().contains(whitelistedRole)) {
+					handleUploads(event);
+				}
+				else {
+					failure(event);
+				}
+			});
 		}
-		if (!isWhitelisted) {
-			plugin.getLogger().info(userTag + " is not whitelisted");
-			event.getChannel().sendMessage("You're not whitelisted").queue();
-			return;
+		else {
+			failure(event);
 		}
 		
+		
+	}
+	
+	private void failure(PrivateMessageReceivedEvent event) {
+		String userTag = event.getAuthor().getAsTag();
+		plugin.getLogger().info(userTag + " is not whitelisted");
+		event.getChannel().sendMessage("You're not whitelisted").queue();
+	}
+
+	private void handleUploads(PrivateMessageReceivedEvent event) {
+		Config config = plugin.config;
+		List<Attachment> attachments = event.getMessage().getAttachments();
+		String userTag = event.getAuthor().getAsTag();
+		long userId = event.getAuthor().getIdLong();
+		long userBytes = plugin.downloadedBytes.getOrDefault(userId, 0L);
+
 		for (Attachment att : attachments) {
 			String filename = att.getFileName();
 			boolean litematic = filename.endsWith(".litematic");
@@ -74,7 +93,7 @@ public class DiscordListener extends ListenerAdapter {
 						try {
 							// convert litematic to worldedit and sanitize output
 							if (litematic) {
-								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir);
+								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir, config.sanitize);
 								List<String> lines = new ArrayList<>();
 								for (File schem : schematics) {
 									lines.add("Uploaded " + copyToSchematicFolders(schem).getName());
@@ -83,7 +102,8 @@ public class DiscordListener extends ListenerAdapter {
 							}
 							// sanitize worldedit schematic
 							else {
-								Sanitizer.sanitize(inputFile);
+								if (config.sanitize)
+									Sanitizer.sanitize(inputFile);
 								String outputFile = copyToSchematicFolders(inputFile).getName();
 								msg = "Uploaded " + outputFile;
 							}
@@ -107,6 +127,16 @@ public class DiscordListener extends ListenerAdapter {
 		}
 		plugin.downloadedBytes.put(userId, userBytes);
 	}
+
+	private boolean containsSchematics(PrivateMessageReceivedEvent event) {
+		List<Attachment> attachments = event.getMessage().getAttachments();
+		for (Attachment att : attachments) {
+			String filename = att.getFileName();
+			if (filename.endsWith(".litematic") || filename.endsWith(".schem"))
+				return true;
+		}
+		return false;
+	}
 	
 	private File copyToSchematicFolders(File file) throws IOException {
 		String pluginsDir = plugin.getDataFolder().getParent();
@@ -114,6 +144,7 @@ public class DiscordListener extends ListenerAdapter {
 		String faweDir = pluginsDir + "/FastAsyncWorldEdit/schematics";
 		
 		Files.createDirectories(Paths.get(weDir));
+		Files.createDirectories(Paths.get(faweDir));
 		String destinationName = weDir + "/" + file.getName();
 		File destination = new File(destinationName);
 		int index = destinationName.lastIndexOf('.');

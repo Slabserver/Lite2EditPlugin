@@ -26,9 +26,8 @@ import se.llbit.nbt.StringTag;
 import se.llbit.nbt.Tag;
 
 public class Converter {
-	private static boolean sanitize = true;
 
-	public static List<File> litematicToWorldEdit(File inputFile, File outputDir) throws IOException {
+	public static List<File> litematicToWorldEdit(File inputFile, File outputDir, boolean sanitize) throws IOException {
 		File tempFile = new File("lite2edit_" + Thread.currentThread().getId() + ".tmp");
 		DataInputStream inStream = new DataInputStream(new GZIPInputStream(new FileInputStream(inputFile)));
 		Tag litematica = CompoundTag.read(inStream).get("");
