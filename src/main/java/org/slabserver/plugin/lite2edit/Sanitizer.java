@@ -75,27 +75,53 @@ public class Sanitizer {
 				continue;
 			}
 			switch (id) {
+			// Signs: remove lines containing click events
 			case "minecraft:sign":
 			case "sign":
+			case "minecraft:hanging_sign":
+			case "hanging_sign":
 				CompoundTag newBlockEntity = new CompoundTag();
 				for (NamedTag namedTag : blockEntity) {
 					String key = namedTag.name();
+					String json;
 					switch (key) {
+					// pre 1.20 format
 					case "Text1":
 					case "Text2":
 					case "Text3":
 					case "Text4":
-						String json = namedTag.unpack().stringValue();
+						json = namedTag.unpack().stringValue();
 						if (json.contains("\"clickEvent\"")) {
 							modifiedTileEntities = true;
 							newBlockEntity.add(key, new StringTag(""));
-							continue;
 						}
+						else
+							newBlockEntity.add(namedTag);
+						break;
+					
+					// 1.20+ format
+					case "back_text":
+					case "front_text":
+						ListTag messages = namedTag.get("messages").asList();
+						for (int i = 0; i < messages.size(); i++) {
+							json = messages.get(i).stringValue();
+							if (json.contains("\"clickEvent\"")) {
+								modifiedTileEntities = true;
+								messages.set(i, new StringTag(""));
+							}
+						}
+						namedTag.set("messages", messages);
+						newBlockEntity.add(namedTag);
+						break;
+					default:
+						newBlockEntity.add(namedTag);
+						break;
 					}
-					newBlockEntity.add(namedTag);
 				}
 				newBlockEntities.add(newBlockEntity);
 				break;
+			
+			// Remove OP-only blocks
 			case "minecraft:command_block":
 			case "command_block":
 			case "minecraft:structure_block":
@@ -104,8 +130,11 @@ public class Sanitizer {
 			case "jigsaw":
 				modifiedTileEntities = true;
 				break;
+			
+			// other tile entities are copied without modifications
 			default:
 				newBlockEntities.add(blockEntity);
+				break;
 			}
 		}
 		
@@ -113,7 +142,7 @@ public class Sanitizer {
 		if (!modifiedTileEntities && blocksToRemove.isEmpty())
 			return worldEditRoot;
 		
-		Lite2Edit.getPlugin(Lite2Edit.class).getLogger().info("Sanitizing schematic");
+		Lite2Edit.getInstance().getLogger().info("Sanitizing schematic");
 		byte[] blocks = worldEdit.get("BlockData").byteArray();
 		if (!blocksToRemove.isEmpty()) {
 			// check if stone is in the palette already

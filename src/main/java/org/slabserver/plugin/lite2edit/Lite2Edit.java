@@ -21,6 +21,7 @@ import net.dv8tion.jda.api.JDABuilder;
 
 public class Lite2Edit extends JavaPlugin {
 	public static JDA jda;
+	public static Lite2Edit plugin;
 	private ScheduledExecutorService ses;
 	protected long whitelistedGuild, whitelistedRole;
 	protected Map<Long, Integer> downloadedBytes;
@@ -59,6 +60,7 @@ public class Lite2Edit extends JavaPlugin {
 		}
 		
 		jda.addEventListener(new DiscordListener(this));
+		plugin = this;
 	}
 
 	@Override
@@ -66,6 +68,10 @@ public class Lite2Edit extends JavaPlugin {
 		if (jda != null)
 			jda.shutdownNow();
 		ses.shutdownNow();
+	}
+	
+	public static Lite2Edit getInstance() {
+		return plugin;
 	}
 
 }
