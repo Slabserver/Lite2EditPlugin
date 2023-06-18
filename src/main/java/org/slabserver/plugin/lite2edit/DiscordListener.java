@@ -41,28 +41,29 @@ public class DiscordListener extends ListenerAdapter {
 			return;
 		}
 		Guild guild = jda.getGuildById(config.whitelistedGuild);
-		if (guild != null) {
+		Role whitelistedRole;
+		if (guild == null) {
+			failure(event, "Configured whitelisted guild could not be found. Contact server administrator for help.");
+		}
+		else if ((whitelistedRole = guild.getRoleById(config.whitelistedRole)) == null) {
+			failure(event, "Configured whitelisted role could not be found. Contact server administrator for help.");
+		}
+		else {
 			guild.retrieveMemberById(userId).queue(member -> {
-				Role whitelistedRole = guild.getRoleById(config.whitelistedRole);
 				if (member.getRoles().contains(whitelistedRole)) {
 					handleUploads(event);
 				}
 				else {
-					failure(event);
+					failure(event, "You're not whitelisted to use this bot.");
 				}
 			});
 		}
-		else {
-			failure(event);
-		}
-		
-		
 	}
 	
-	private void failure(PrivateMessageReceivedEvent event) {
+	private void failure(PrivateMessageReceivedEvent event, String error) {
 		String userTag = event.getAuthor().getAsTag();
-		plugin.getLogger().info(userTag + " is not whitelisted");
-		event.getChannel().sendMessage("You're not whitelisted").queue();
+		plugin.getLogger().info(userTag + " encountered an error: " + error);
+		event.getChannel().sendMessage("Error: " + error).queue();
 	}
 
 	private void handleUploads(PrivateMessageReceivedEvent event) {
