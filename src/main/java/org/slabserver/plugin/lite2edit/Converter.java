@@ -1,6 +1,6 @@
 package org.slabserver.plugin.lite2edit;
 
-import java.io.BufferedWriter;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -55,7 +55,7 @@ public class Converter {
 			
 			// convert blocks
 			// use a temporary file to avoid OutOfMemoryErrors for large schematics
-			BufferedWriter writer = Files.newBufferedWriter(tempFile.toPath());
+			BufferedOutputStream fout = new BufferedOutputStream(new FileOutputStream(tempFile));
 			int numBlocks = Math.abs(x * y * z);
 			long bitmask, bits = 0;
 			int i = 0, bitCount = 0, weSize = 0;
@@ -67,7 +67,7 @@ public class Converter {
 					bits = bits | newBits;
 					num = num >>> (bitsPerBlock - bitCount);
 					remainingBits -= bitsPerBlock;
-					weSize += writeBlock(writer, (short) bits);
+					weSize += writeBlock(fout, (short) bits);
 					i++;
 				}
 				
@@ -78,13 +78,13 @@ public class Converter {
 					remainingBits -= bitsPerBlock;
 					if (i >= numBlocks)
 						break;
-					weSize += writeBlock(writer, (short) bits);
+					weSize += writeBlock(fout, (short) bits);
 					i++;
 				}
 				bits = num;
 				bitCount = remainingBits;
 			}
-			writer.close();
+			fout.close();
 			
 			i = 0;
 			String[] blockPalette = new String[palette.size()];
@@ -195,15 +195,15 @@ public class Converter {
 		return files;
 	}
 
-	private static int writeBlock(BufferedWriter writer, short block) throws IOException {
+	private static int writeBlock(BufferedOutputStream fout, short block) throws IOException {
 		int b = block >>> 7;
 		if (b == 0) {
-			writer.write(block);
+			fout.write(block);
 			return 1;
 		}
 		else {
-			writer.write(block | 128);
-			writer.write(b);
+			fout.write(block | 128);
+			fout.write(b);
 			return 2;
 		}
 	}

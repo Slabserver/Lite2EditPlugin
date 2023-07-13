@@ -67,7 +67,6 @@ public class DiscordListener extends ListenerAdapter {
 	}
 
 	private void handleUploads(PrivateMessageReceivedEvent event) {
-		Config config = plugin.config;
 		List<Attachment> attachments = event.getMessage().getAttachments();
 		String userTag = event.getAuthor().getAsTag();
 		long userId = event.getAuthor().getIdLong();
@@ -94,19 +93,19 @@ public class DiscordListener extends ListenerAdapter {
 						try {
 							// convert litematic to worldedit and sanitize output
 							if (litematic) {
-								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir, config.sanitize);
+								List<File> schematics = Converter.litematicToWorldEdit(inputFile, outputDir, plugin.config.sanitize);
 								List<String> lines = new ArrayList<>();
 								for (File schem : schematics) {
-									lines.add("Uploaded " + copyToSchematicFolders(schem).getName());
+									lines.add("Uploaded `" + copyToSchematicFolders(schem).getName() + "`");
 								}
 								msg = String.join("\n", lines);
 							}
 							// sanitize worldedit schematic
 							else {
-								if (config.sanitize)
+								if (plugin.config.sanitize)
 									Sanitizer.sanitize(inputFile);
 								String outputFile = copyToSchematicFolders(inputFile).getName();
-								msg = "Uploaded " + outputFile;
+								msg = "Uploaded `" + outputFile + "`";
 							}
 						} catch (IOException e) {
 							e.printStackTrace();
@@ -120,7 +119,7 @@ public class DiscordListener extends ListenerAdapter {
 					});
 				} catch (Exception e) {
 					e.printStackTrace();
-					String msg = "Failed to download " + filename;
+					String msg = "Failed to download `" + filename + "`";
 					plugin.getLogger().info(msg);
 					event.getChannel().sendMessage(msg).queue();
 				}
