@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -102,16 +103,28 @@ public class Sanitizer {
 					// 1.20+ format
 					case "back_text":
 					case "front_text":
-						ListTag messages = namedTag.get("messages").asList();
+						CompoundTag text = namedTag.unpack().asCompound();
+						ListTag messages = text.get("messages").asList();
+						ListTag newMessages = new ListTag(Tag.TAG_STRING, Collections.emptyList());
 						for (int i = 0; i < messages.size(); i++) {
 							json = messages.get(i).stringValue();
 							if (json.contains("\"clickEvent\"")) {
 								modifiedTileEntities = true;
-								messages.set(i, new StringTag(""));
+								newMessages.add(new StringTag(""));
+							}
+							else {
+								newMessages.add(new StringTag(json));
 							}
 						}
-						namedTag.set("messages", messages);
-						newBlockEntity.add(namedTag);
+						
+						CompoundTag newText = new CompoundTag();
+						newText.add("messages", newMessages);
+						// copy remaining tags
+						for (NamedTag tag : text) {
+							if (!tag.name().equals("messages"))
+								newText.add(tag);
+						}
+						newBlockEntity.add(key, newText);
 						break;
 					default:
 						newBlockEntity.add(namedTag);

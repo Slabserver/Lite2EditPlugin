@@ -110,14 +110,14 @@ public class DiscordListener extends ListenerAdapter {
 						} catch (IOException e) {
 							e.printStackTrace();
 							msg = "IO Exception. Contact server administrator for help.";
-						} catch (Exception e) {
+						} catch (Throwable e) {
 							e.printStackTrace();
-							msg = "Unexpected error. Is this file a valid schematic?";
+							msg = "Unexpected error. Contact server administrator for help. (" + e.getClass().getName() + ")";
 						}
 						plugin.getLogger().info(msg);
 						event.getChannel().sendMessage(msg).queue();
 					});
-				} catch (Exception e) {
+				} catch (Throwable e) {
 					e.printStackTrace();
 					String msg = "Failed to download `" + filename + "`";
 					plugin.getLogger().info(msg);
