@@ -151,11 +151,9 @@ public class Sanitizer {
 			}
 		}
 		
-		// if there's nothing to change, return parameter early
-		if (!modifiedTileEntities && blocksToRemove.isEmpty())
-			return worldEditRoot;
+		if (modifiedTileEntities || !blocksToRemove.isEmpty())
+			Lite2Edit.getInstance().getLogger().info("Sanitizing schematic");
 		
-		Lite2Edit.getInstance().getLogger().info("Sanitizing schematic");
 		byte[] blocks = worldEdit.get("BlockData").byteArray();
 		if (!blocksToRemove.isEmpty()) {
 			// check if stone is in the palette already
@@ -216,6 +214,7 @@ public class Sanitizer {
 			case "Palette":
 			case "BlockEntities":
 			case "BlockData":
+			case "Entities":
 				continue;
 			default:
 				newWorldEdit.add(namedTag);
