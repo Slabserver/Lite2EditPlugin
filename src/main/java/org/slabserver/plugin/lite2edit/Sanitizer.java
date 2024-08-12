@@ -214,14 +214,14 @@ public class Sanitizer {
 			case "Palette":
 			case "BlockEntities":
 			case "BlockData":
-			case "Entities":
+			case "Entities": // remove entities to avoid falling block exploits
 				continue;
 			default:
 				newWorldEdit.add(namedTag);
 			}
 		}
 		CompoundTag newWorldEditRoot = new CompoundTag();
-		newWorldEditRoot.add("", newWorldEdit);
+		newWorldEditRoot.add("Schematic", newWorldEdit);
 		return newWorldEditRoot;
 	}
 
